@@ -1,0 +1,5 @@
+path: C:/Users/agast/OneDrive/Codes/Badminton AI/training/shuttlecock_yolo_dataset
+train: C:/Users/agast/OneDrive/Codes/Badminton AI/training/shuttlecock_yolo_dataset/train_curated.txt
+val: C:/Users/agast/OneDrive/Codes/Badminton AI/training/shuttlecock_yolo_dataset/val_curated.txt
+names:
+  0: shuttlecock

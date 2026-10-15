@@ -1,0 +1,5 @@
+path: C:\Users\agast\OneDrive\Codes\Badminton AI\training\shuttlecock_yolo_dataset
+train: images/train
+val: images/val
+names:
+- shuttlecock

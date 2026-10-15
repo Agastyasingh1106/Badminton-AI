@@ -1,0 +1,29 @@
+# Python Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.ipynb_checkpoints
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Large pre-trained base models exceeding GitHub's 100MB hard limit
+# (Automatically downloaded on demand by Ultralytics: YOLO('yolov8x.pt'))
+yolov8x.pt
+
+# Scratch run folders (final videos are organized in output_videos/)
+runs/detect/predict/
+runs/detect/predict-4/
+runs/detect/badminton/
+runs/detect/shuttle-only/
+runs/detect/shuttle_predict/
+!runs/detect/shuttlecock/
