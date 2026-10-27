@@ -34,6 +34,8 @@ OUTPUT_ROOT = PROJECT_ROOT / "runs" / "analysis"
 # more often than 640, and motion blobs (often shoes/shirts) must not outrank weak model detections
 SHUTTLE_IMGSZ = 960
 MOTION_CONF = 0.03
+STRONG_CONF = 0.3    # model detections this confident override the tracker's expectation
+START_CONF = 0.05    # minimum confidence to start a new track
 PLAYER_COLOR = (0, 0, 255)
 PREDICT_COLOR = (0, 140, 255)
 ACTUAL_COLOR = (0, 220, 0)
@@ -48,7 +50,15 @@ def _detect_shuttle(model, tracker, f_prev, f_curr, f_next, airspace_mask, airsp
         motion = extract_temporal_motion_candidates(f_prev, f_curr, f_next, airspace_mask)
         detections.extend((*m[:4], MOTION_CONF) for m in motion)
     detections = drop_candidates_on_players(detections, player_boxes)
-    best = select_best_shuttle_candidate(detections, tracker, airspace_polygon, frame=f_curr)
+
+    # A confident model detection wins even far from where the tracker expected the shuttle,
+    # so a track stuck on the wrong object is dropped at once
+    strong = [d for d in detections if d[4] >= STRONG_CONF]
+    best = select_best_shuttle_candidate(strong or detections, tracker, airspace_polygon, frame=f_curr)
+
+    # With no track running, a weak candidate (usually a motion blob) is not enough to start one
+    if best is not None and tracker.pos is None and best[1] < START_CONF:
+        best = None
     if best is not None:
         box, conf = best
         point = tracker.update((int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)), conf)
