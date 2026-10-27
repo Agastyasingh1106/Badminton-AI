@@ -2,21 +2,21 @@
   "tolerance_px": 15.0,
   "results": {
     "original model, no player filter": {
-      "correct": 8,
+      "correct": 13,
       "total": 40,
       "held_out_correct": 1,
       "held_out_total": 10
     },
     "original model + player filter": {
-      "correct": 10,
+      "correct": 15,
       "total": 40,
       "held_out_correct": 1,
       "held_out_total": 10
     },
     "retrained model + player filter": {
-      "correct": 21,
+      "correct": 27,
       "total": 40,
-      "held_out_correct": 4,
+      "held_out_correct": 5,
       "held_out_total": 10
     }
   }
