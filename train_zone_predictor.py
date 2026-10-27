@@ -45,7 +45,8 @@ def load_trajectories(split: str):
         if line:
             _, cx, cy, *_ = map(float, line[0].split())
             tracks[video][frame] = (cx * w, cy * h)
-    return dict(tracks)
+    # Hand-labelled clips (label_shuttle.py) are sparse and off the 4-frame grid: not rally tracks
+    return {video: pts for video, pts in tracks.items() if all(f % 4 == 0 for f in pts)}
 
 
 def split_trajectories():

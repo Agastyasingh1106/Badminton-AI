@@ -91,6 +91,12 @@ python calibrate_court.py
 # 2. Train the next-zone predictor (seconds)
 python train_zone_predictor.py
 
+# Optional: new footage the shuttle model hasn't seen -> click the shuttle in ~40 frames,
+# fine-tune, and measure tracking against the clicks
+python label_shuttle.py sample_dataset/00467.mp4
+python train_shuttlecock.py --model runs/detect/shuttlecock/weights/best.pt --epochs 8 --subset 250 --include 00467 --output-dir runs/detect/shuttlecock_v2
+python eval_shuttle_tracking.py
+
 # 3. Analyse a rally from the command line
 python analyze_match.py sample_dataset/00467.mp4
 

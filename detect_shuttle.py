@@ -16,7 +16,10 @@ from ultralytics import YOLO
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_VIDEO = PROJECT_ROOT / "sample_dataset" / "00467.mp4"
-DEFAULT_MODEL = PROJECT_ROOT / "runs" / "detect" / "shuttlecock" / "weights" / "best.pt"
+ORIGINAL_MODEL = PROJECT_ROOT / "runs" / "detect" / "shuttlecock" / "weights" / "best.pt"
+# Fine-tuned with hand-labelled frames of new footage (label_shuttle.py); used when present
+FINETUNED_MODEL = PROJECT_ROOT / "runs" / "detect" / "shuttlecock_v2" / "weights" / "best.pt"
+DEFAULT_MODEL = FINETUNED_MODEL if FINETUNED_MODEL.is_file() else ORIGINAL_MODEL
 FALLBACK_MODEL = PROJECT_ROOT / "yolov8n.pt"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "runs" / "detect" / "shuttle_predict"
 
@@ -148,6 +151,29 @@ class ShuttleTrajectoryTracker:
             cv2.circle(frame, pts[i], max(1, int(3 * alpha)), color, -1, cv2.LINE_AA)
 
 
+def drop_candidates_on_players(
+    detections: List[Tuple[float, float, float, float, float]],
+    player_boxes: List[Tuple[float, float, float, float]],
+    keep_conf: float = 0.4,
+    head_fraction: float = 0.3,
+) -> List[Tuple[float, float, float, float, float]]:
+    """Removes candidates on a player's body (white shoes, shirts, arms move like a shuttle).
+
+    The top `head_fraction` of each box is kept because the shuttle is often there at racket contact,
+    and strong model detections (conf >= keep_conf) are always kept.
+    """
+    kept = []
+    for det in detections:
+        cx, cy = (det[0] + det[2]) / 2.0, (det[1] + det[3]) / 2.0
+        on_body = any(
+            x1 <= cx <= x2 and y1 + head_fraction * (y2 - y1) <= cy <= y2
+            for x1, y1, x2, y2 in player_boxes
+        )
+        if det[4] >= keep_conf or not on_body:
+            kept.append(det)
+    return kept
+
+
 def is_near_court(point: Tuple[int, int], court_polygon: np.ndarray, tolerance: float = -30.0) -> bool:
     """Checks if point is inside or within reasonable margin of the court."""
     return cv2.pointPolygonTest(court_polygon, point, True) >= tolerance
@@ -191,10 +217,10 @@ def select_best_shuttle_candidate(
             iy1, iy2 = max(0, int(y1)), min(frame.shape[0], int(y2))
             ix1, ix2 = max(0, int(x1)), min(frame.shape[1], int(x2))
             patch = frame[iy1:iy2, ix1:ix2]
-            if patch.size > 0:
-                mean_val = float(patch.mean())
-                if mean_val < 85.0:
-                    continue
+            # Check the brightest pixels, not the mean: a tiny white shuttle over a dark
+            # background has a low mean but a bright core
+            if patch.size > 0 and float(np.percentile(patch, 95)) < 120.0:
+                continue
 
         score = conf * 100.0
         if pred is not None:
