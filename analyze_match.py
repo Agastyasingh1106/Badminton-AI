@@ -22,7 +22,7 @@ from badminton.court import CourtMapper, load_corners, video_id_from_path, zone_
 from badminton.events import EARLY_SAMPLES, STRIDE, attach_targets, detect_hits
 from badminton.predictor import ZonePredictor
 from detect_shuttle import DEFAULT_MODEL as SHUTTLE_MODEL
-from detect_shuttle import (SHUTTLE_AIRSPACE_POLYGON, ShuttleTrajectoryTracker, draw_shuttle_overlay,
+from detect_shuttle import (SHUTTLE_AIRSPACE_POLYGON, ShuttleTrajectoryTracker,
                             drop_candidates_on_players, extract_temporal_motion_candidates,
                             select_best_shuttle_candidate)
 from yolo_inference import TwoPlayerTracker, draw_detection, point_is_near_polygon
@@ -177,14 +177,19 @@ def _panel(frame, lines, origin=(None, 20), width=330):
         cv2.putText(frame, text, (x0 + 10, y0 + 24 + 22 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
 
 
+def draw_shuttle_pointer(frame, point):
+    """Just a marker on the shuttle: no trail, label or info panel."""
+    cv2.circle(frame, point, 11, (0, 255, 255), 2, cv2.LINE_AA)
+    cv2.circle(frame, point, 3, (0, 0, 255), -1, cv2.LINE_AA)
+
+
 def render_video(video_path, frames, events, mapper: CourtMapper, info, out_path: Path,
                  progress: Optional[Callable] = None):
-    """Pass 2: draw zones, players, shuttle trail, shot info and live next-zone prediction."""
+    """Pass 2: draw zones, players, a shuttle pointer, shot info and live next-zone prediction."""
     cap = cv2.VideoCapture(str(video_path))
     raw_path = out_path.with_name(out_path.stem + "_raw.mp4")
     writer = cv2.VideoWriter(str(raw_path), cv2.VideoWriter_fourcc(*"mp4v"), info["fps"],
                              (info["width"], info["height"]))
-    shuttle = ShuttleTrajectoryTracker(fps=info["fps"])
 
     for i, data in enumerate(frames):
         ok, frame = cap.read()
@@ -209,13 +214,7 @@ def render_video(video_path, frames, events, mapper: CourtMapper, info, out_path
             draw_detection(frame, box, f"racket {conf:.2f}", color=(0, 165, 255), thickness=2)
 
         if data["shuttle"] is not None:
-            point, conf, kind = data["shuttle"]
-            shuttle.update(point, conf)
-            box = (point[0] - 8, point[1] - 8, point[0] + 8, point[1] + 8)
-            draw_shuttle_overlay(frame, box, conf, shuttle)
-        else:
-            shuttle.update(None)
-            draw_shuttle_overlay(frame, None, 0.0, shuttle)
+            draw_shuttle_pointer(frame, data["shuttle"][0])
 
         shots_so_far = sum(1 for e in events if e["frame"] <= i)
         lines = [(f"RALLY ANALYSIS   shots: {shots_so_far}", (255, 255, 255))]
