@@ -21,25 +21,33 @@ from ultralytics import YOLO
 from badminton.court import CourtMapper, load_corners, video_id_from_path, zone_of
 from badminton.events import EARLY_SAMPLES, STRIDE, attach_targets, detect_hits
 from badminton.predictor import ZonePredictor
+from detect_shuttle import DEFAULT_MODEL as SHUTTLE_MODEL
 from detect_shuttle import (SHUTTLE_AIRSPACE_POLYGON, ShuttleTrajectoryTracker, draw_shuttle_overlay,
-                            extract_temporal_motion_candidates, select_best_shuttle_candidate)
+                            drop_candidates_on_players, extract_temporal_motion_candidates,
+                            select_best_shuttle_candidate)
 from yolo_inference import TwoPlayerTracker, draw_detection, point_is_near_polygon
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_VIDEO = PROJECT_ROOT / "sample_dataset" / "00467.mp4"
-SHUTTLE_MODEL = PROJECT_ROOT / "runs" / "detect" / "shuttlecock" / "weights" / "best.pt"
 OUTPUT_ROOT = PROJECT_ROOT / "runs" / "analysis"
+# Measured with eval_shuttle_tracking.py on hand-labelled frames: 960 px finds the tiny shuttle
+# more often than 640, and motion blobs (often shoes/shirts) must not outrank weak model detections
+SHUTTLE_IMGSZ = 960
+MOTION_CONF = 0.03
 PLAYER_COLOR = (0, 0, 255)
 PREDICT_COLOR = (0, 140, 255)
 ACTUAL_COLOR = (0, 220, 0)
 
 
-def _detect_shuttle(model, tracker, f_prev, f_curr, f_next, airspace_mask, airspace_polygon):
-    """Same fusion as detect_shuttle.process_video: YOLO + 3-frame motion, then the tracker."""
-    result = model.predict(f_curr, conf=0.001, imgsz=640, verbose=False)[0]
+def _detect_shuttle(model, tracker, f_prev, f_curr, f_next, airspace_mask, airspace_polygon, player_boxes):
+    """Same fusion as detect_shuttle.process_video: YOLO + 3-frame motion, then the tracker,
+    with candidates on the players' bodies removed first."""
+    result = model.predict(f_curr, conf=0.001, imgsz=SHUTTLE_IMGSZ, verbose=False)[0]
     detections = [(*box.xyxy[0].tolist(), float(box.conf.item())) for box in result.boxes]
     if f_prev is not None and f_next is not None:
-        detections.extend(extract_temporal_motion_candidates(f_prev, f_curr, f_next, airspace_mask))
+        motion = extract_temporal_motion_candidates(f_prev, f_curr, f_next, airspace_mask)
+        detections.extend((*m[:4], MOTION_CONF) for m in motion)
+    detections = drop_candidates_on_players(detections, player_boxes)
     best = select_best_shuttle_candidate(detections, tracker, airspace_polygon, frame=f_curr)
     if best is not None:
         box, conf = best
@@ -50,10 +58,11 @@ def _detect_shuttle(model, tracker, f_prev, f_curr, f_next, airspace_mask, airsp
 
 
 def track_video(video_path: Path, mapper: CourtMapper, person_model_path: Path, max_frames=None,
-                progress: Optional[Callable] = None):
+                progress: Optional[Callable] = None, shuttle_model_path: Path = SHUTTLE_MODEL,
+                player_filter: bool = True):
     """Pass 1: per-frame players, rackets and shuttle positions."""
     person_model = YOLO(str(person_model_path))
-    shuttle_model = YOLO(str(SHUTTLE_MODEL))
+    shuttle_model = YOLO(str(shuttle_model_path))
 
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -94,7 +103,8 @@ def track_video(video_path: Path, mapper: CourtMapper, person_model_path: Path, 
 
         tracked = players.track(candidates)
         point, s_conf, kind = _detect_shuttle(shuttle_model, shuttle, f_prev, f_curr, f_next,
-                                              airspace_mask, airspace_polygon)
+                                              airspace_mask, airspace_polygon,
+                                              [box for _, box, _ in tracked] if player_filter else [])
         frames.append({
             "players": [(pid, tuple(map(float, box)), conf) for pid, box, conf in tracked],
             "rackets": [(tuple(map(float, box)), conf) for box, conf in rackets],

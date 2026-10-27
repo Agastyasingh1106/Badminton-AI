@@ -151,12 +151,12 @@ def early_moves(event, sample_index, mapper, stride=STRIDE) -> List[Tuple[float,
 
 
 def shot_speed_kmh(event, sample_index, mapper, fps=30.0, stride=STRIDE) -> float:
-    """Speed right after the hit, from the first two samples."""
-    p0 = sample_index.get(event["frame"])
-    p1 = sample_index.get(event["frame"] + stride)
-    if p0 is None or p1 is None:
+    """Speed right after the hit: the smaller of the first two moves, so one tracking jump can't inflate it."""
+    pts = [sample_index.get(event["frame"] + j * stride) for j in range(3)]
+    steps = [np.linalg.norm(np.array(b) - np.array(a)) for a, b in zip(pts, pts[1:]) if a is not None and b is not None]
+    if not steps:
         return 0.0
-    metres = np.linalg.norm(np.array(p1) - np.array(p0)) / mapper.px_per_metre(event["px"])
+    metres = min(steps) / mapper.px_per_metre(event["px"])
     return float(min(metres * fps / stride * 3.6, 420.0))
 
 
