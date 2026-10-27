@@ -27,3 +27,7 @@ runs/detect/badminton/
 runs/detect/shuttle-only/
 runs/detect/shuttle_predict/
 !runs/detect/shuttlecock/
+
+# Dashboard uploads and scratch analysis
+runs/uploads/
+runs/zone_model/hit_previews/

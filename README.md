@@ -76,6 +76,30 @@ python train_shuttlecock.py --epochs 15 --batch 16 --subset 400
 
 ---
 
+## 🗺️ Court Zones, Next-Zone Prediction & Dashboard
+
+- **Court zones** (`badminton/court.py`): the 4 court corners give a homography from pixels to court metres. Each half is split into 6 zones (F1–F6 far side, N1–N6 near side; 1–3 next to the net, 4–6 near the baseline). Airborne hit points are dropped onto the floor assuming a ~2 m contact height.
+- **Shot events** (`badminton/events.py`): hits are found where the shuttle's path turns sharply or speeds up, on a trajectory sampled every 4th frame (the same rate as the training labels). Each shot gets its player, zone, speed and the zone it was sent to.
+- **Next-zone predictor** (`badminton/predictor.py`, `train_zone_predictor.py`): a Random Forest uses the hit zone, previous zone, shot speed and the shuttle's first 0.4 s of flight to predict which of the opponent's 6 zones the shuttle goes to. It is trained on the 51 labelled rallies and scored on unseen rallies against simple baselines.
+- **Match pipeline** (`analyze_match.py`): players + rackets + shuttle tracking, zones, shots and live predictions → annotated H.264 video, `events.csv` and `summary.json` in `runs/analysis/<video_id>/`.
+- **Dashboard** (`app.py`): Streamlit app with the annotated video, shot timeline, zone heatmaps, prediction viewer, model accuracy and player movement.
+
+```bash
+# 1. Click the 4 court corners for each video (saved to court_corners.json)
+python calibrate_court.py
+
+# 2. Train the next-zone predictor (seconds)
+python train_zone_predictor.py
+
+# 3. Analyse a rally from the command line
+python analyze_match.py sample_dataset/00467.mp4
+
+# 4. Or open the dashboard
+streamlit run app.py
+```
+
+---
+
 ## 📊 Performance & Results
 
 - **Player Tracking**: 100% persistent Player 1 & 2 identity retention across rallies.
