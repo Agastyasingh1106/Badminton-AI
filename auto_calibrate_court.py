@@ -164,10 +164,8 @@ def calibrate_folder(folder: Path, redo: bool = False):
     failed = []
     for i, path in enumerate(videos, 1):
         video = video_id_from_path(path)
-        if video in corners and not redo and log.get(video, {}).get("auto", True) is False:
-            continue
-        if video in corners and not redo and video not in log:
-            continue  # clicked by hand
+        if video in corners and video not in log:
+            continue  # clicked by hand: never overwritten, even with --redo
         if video in log and not redo:
             if not log[video]["accepted"]:
                 failed.append(video)
