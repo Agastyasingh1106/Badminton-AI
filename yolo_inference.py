@@ -25,7 +25,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_VIDEO = PROJECT_ROOT / "sample_dataset" / "00467.mp4"
 PERSON_MODEL_PATH = PROJECT_ROOT / "yolov8x.pt"
 SHUTTLE_MODEL_PATH = (
-    PROJECT_ROOT / "runs" / "detect" / "shuttlecock" / "weights" / "best.pt"
+    PROJECT_ROOT / "runs" / "detect" / "shuttlecock_v2" / "weights" / "best.pt"
+    if (PROJECT_ROOT / "runs" / "detect" / "shuttlecock_v2" / "weights" / "best.pt").is_file()
+    else PROJECT_ROOT / "runs" / "detect" / "shuttlecock" / "weights" / "best.pt"
 )
 OUTPUT_DIR = PROJECT_ROOT / "runs" / "detect" / "predict"
 

@@ -21,6 +21,8 @@ def prepare_curated_split(
     subset_size: int = 450,
     negative_ratio: float = 0.15,
     seed: int = 42,
+    include_videos=(),
+    repeat: int = 6,
 ) -> Path:
     """Prepares a balanced, high-signal subset of annotated images for fast and accurate training."""
     train_img_dir = dataset_dir / "images" / "train"
@@ -59,10 +61,23 @@ def prepare_curated_split(
     num_neg = int(len(selected_pos) * negative_ratio)
     selected_neg = negatives[:num_neg]
 
-    train_list = selected_pos + selected_neg
+    # Hand-labelled frames from new footage (label_shuttle.py) are always used, repeated so a
+    # few dozen frames still count against hundreds of older ones
+    def is_included(path):
+        return any(Path(path).name.startswith(f"{video}_") for video in include_videos)
+
+    selected_pos = [p for p in selected_pos if not is_included(p)]
+    selected_neg = [p for p in selected_neg if not is_included(p)]
+    forced = [p for p in positives + negatives if is_included(p)]
+
+    train_list = selected_pos + selected_neg + forced * repeat
     rng.shuffle(train_list)
 
     val_list = val_positives[: min(150, len(val_positives))] if subset_size > 0 else val_positives
+    val_list += [img.as_posix() for img in sorted(val_img_dir.glob("*.jpg"))
+                 if is_included(img) and img.as_posix() not in val_list]
+    if forced:
+        print(f"  - Hand-labelled frames:   {len(forced)} x{repeat} from {', '.join(include_videos)}")
 
     train_txt = dataset_dir / "train_curated.txt"
     val_txt = dataset_dir / "val_curated.txt"
@@ -94,6 +109,8 @@ def train_shuttlecock(
     subset_size: int = 400,
     base_model: str = "yolov8n.pt",
     output_dir: Path = DEFAULT_OUTPUT_DIR,
+    include_videos=(),
+    repeat: int = 6,
 ):
     """Fine-tunes YOLO for shuttlecock detection with small-object hyperparameter tuning."""
     base_model_path = PROJECT_ROOT / base_model
@@ -112,7 +129,8 @@ def train_shuttlecock(
     print(f"==========================================\n")
 
     if subset_size > 0:
-        data_yaml = prepare_curated_split(DATASET_DIR, subset_size=subset_size)
+        data_yaml = prepare_curated_split(DATASET_DIR, subset_size=subset_size,
+                                          include_videos=include_videos, repeat=repeat)
     else:
         data_yaml = DATASET_DIR / "data.yaml"
 
@@ -172,6 +190,9 @@ if __name__ == "__main__":
         default=DEFAULT_OUTPUT_DIR,
         help="Directory to save runs and weights.",
     )
+    parser.add_argument("--include", nargs="*", default=[],
+                        help="Video ids whose hand-labelled frames (label_shuttle.py) are always used.")
+    parser.add_argument("--repeat", type=int, default=6, help="How many times to repeat the included frames.")
     args = parser.parse_args()
 
     train_shuttlecock(
@@ -180,5 +201,7 @@ if __name__ == "__main__":
         imgsz=args.imgsz,
         subset_size=args.subset,
         base_model=args.model,
-        output_dir=args.output_dir,
+        output_dir=args.output_dir if args.output_dir.is_absolute() else PROJECT_ROOT / args.output_dir,
+        include_videos=args.include,
+        repeat=args.repeat,
     )

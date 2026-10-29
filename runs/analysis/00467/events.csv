@@ -1,0 +1,10 @@
+shot_no,frame,time_s,player,side,zone,speed_kmh,next_zone,predicted_zone,predicted_prob,correct
+1,28,0.93,2,near,N2,84.1,F6,F5,0.382,False
+2,80,2.67,1,far,F6,25.3,N2,N5,0.327,False
+3,104,3.47,2,near,N2,11.0,F4,F4,0.428,True
+4,152,5.07,1,far,F4,60.2,N1,N5,0.565,False
+5,164,5.47,2,near,N1,31.3,F5,F5,0.621,True
+6,192,6.4,1,far,F5,23.0,N5,N5,0.534,True
+7,236,7.87,2,near,N5,42.5,F2,F5,0.445,False
+8,248,8.27,1,far,F2,20.0,N1,N5,0.418,False
+9,264,8.8,2,near,N1,44.3,F4,F5,0.596,False
