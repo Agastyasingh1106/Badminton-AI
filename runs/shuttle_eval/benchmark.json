@@ -1,0 +1,312 @@
+{
+  "tolerance_px": 10.0,
+  "model": "D:\\Cuulege\\Sem 5\\GENAI\\Badminton-AI\\runs\\detect\\shuttlecock_v2\\weights\\best.pt",
+  "totals": {
+    "ours": {
+      "visible_correct": 265,
+      "visible_total": 737,
+      "accuracy": 0.35956580732700133,
+      "false_shuttles": 118,
+      "not_visible_total": 144,
+      "median_error_px": 60.99719429193915
+    },
+    "tracknet": {
+      "visible_correct": 642,
+      "visible_total": 737,
+      "accuracy": 0.8710990502035278,
+      "false_shuttles": 83,
+      "not_visible_total": 144,
+      "median_error_px": 2.8284271247461903
+    }
+  },
+  "per_video": {
+    "00412": {
+      "ours": {
+        "visible_correct": 12,
+        "visible_total": 39,
+        "accuracy": 0.3076923076923077,
+        "false_shuttles": 10,
+        "not_visible_total": 10,
+        "median_error_px": 69.642515750079
+      },
+      "tracknet": {
+        "visible_correct": 31,
+        "visible_total": 39,
+        "accuracy": 0.7948717948717948,
+        "false_shuttles": 5,
+        "not_visible_total": 10,
+        "median_error_px": 3.77359245282268
+      }
+    },
+    "00438": {
+      "ours": {
+        "visible_correct": 11,
+        "visible_total": 32,
+        "accuracy": 0.34375,
+        "false_shuttles": 16,
+        "not_visible_total": 20,
+        "median_error_px": 0.0
+      },
+      "tracknet": {
+        "visible_correct": 31,
+        "visible_total": 32,
+        "accuracy": 0.96875,
+        "false_shuttles": 6,
+        "not_visible_total": 20,
+        "median_error_px": 2.029563014098705
+      }
+    },
+    "00467": {
+      "ours": {
+        "visible_correct": 24,
+        "visible_total": 35,
+        "accuracy": 0.6857142857142857,
+        "false_shuttles": 2,
+        "not_visible_total": 5,
+        "median_error_px": 2.692582403567252
+      },
+      "tracknet": {
+        "visible_correct": 33,
+        "visible_total": 35,
+        "accuracy": 0.9428571428571428,
+        "false_shuttles": 5,
+        "not_visible_total": 5,
+        "median_error_px": 3.0516389039334255
+      }
+    },
+    "00475": {
+      "ours": {
+        "visible_correct": 16,
+        "visible_total": 38,
+        "accuracy": 0.42105263157894735,
+        "false_shuttles": 16,
+        "not_visible_total": 18,
+        "median_error_px": 23.66368525821792
+      },
+      "tracknet": {
+        "visible_correct": 30,
+        "visible_total": 38,
+        "accuracy": 0.7894736842105263,
+        "false_shuttles": 15,
+        "not_visible_total": 18,
+        "median_error_px": 2.23606797749979
+      }
+    },
+    "00498": {
+      "ours": {
+        "visible_correct": 15,
+        "visible_total": 43,
+        "accuracy": 0.3488372093023256,
+        "false_shuttles": 5,
+        "not_visible_total": 8,
+        "median_error_px": 70.91177617293195
+      },
+      "tracknet": {
+        "visible_correct": 37,
+        "visible_total": 43,
+        "accuracy": 0.8604651162790697,
+        "false_shuttles": 6,
+        "not_visible_total": 8,
+        "median_error_px": 4.242640687119285
+      }
+    },
+    "00529": {
+      "ours": {
+        "visible_correct": 26,
+        "visible_total": 59,
+        "accuracy": 0.4406779661016949,
+        "false_shuttles": 2,
+        "not_visible_total": 2,
+        "median_error_px": 0.0
+      },
+      "tracknet": {
+        "visible_correct": 52,
+        "visible_total": 59,
+        "accuracy": 0.8813559322033898,
+        "false_shuttles": 2,
+        "not_visible_total": 2,
+        "median_error_px": 2.6627053911388603
+      }
+    },
+    "00551": {
+      "ours": {
+        "visible_correct": 16,
+        "visible_total": 36,
+        "accuracy": 0.4444444444444444,
+        "false_shuttles": 9,
+        "not_visible_total": 12,
+        "median_error_px": 42.999517247576
+      },
+      "tracknet": {
+        "visible_correct": 31,
+        "visible_total": 36,
+        "accuracy": 0.8611111111111112,
+        "false_shuttles": 11,
+        "not_visible_total": 12,
+        "median_error_px": 3.1622776601683795
+      }
+    },
+    "00580": {
+      "ours": {
+        "visible_correct": 15,
+        "visible_total": 37,
+        "accuracy": 0.40540540540540543,
+        "false_shuttles": 10,
+        "not_visible_total": 13,
+        "median_error_px": 41.17344289850626
+      },
+      "tracknet": {
+        "visible_correct": 32,
+        "visible_total": 37,
+        "accuracy": 0.8648648648648649,
+        "false_shuttles": 5,
+        "not_visible_total": 13,
+        "median_error_px": 2.6907248094147116
+      }
+    },
+    "00608": {
+      "ours": {
+        "visible_correct": 20,
+        "visible_total": 40,
+        "accuracy": 0.5,
+        "false_shuttles": 8,
+        "not_visible_total": 10,
+        "median_error_px": 0.0
+      },
+      "tracknet": {
+        "visible_correct": 35,
+        "visible_total": 40,
+        "accuracy": 0.875,
+        "false_shuttles": 2,
+        "not_visible_total": 10,
+        "median_error_px": 2.8284271247461903
+      }
+    },
+    "00632": {
+      "ours": {
+        "visible_correct": 20,
+        "visible_total": 56,
+        "accuracy": 0.35714285714285715,
+        "false_shuttles": 3,
+        "not_visible_total": 3,
+        "median_error_px": 59.10372238700368
+      },
+      "tracknet": {
+        "visible_correct": 46,
+        "visible_total": 56,
+        "accuracy": 0.8214285714285714,
+        "false_shuttles": 3,
+        "not_visible_total": 3,
+        "median_error_px": 3.6527756377319953
+      }
+    },
+    "00658": {
+      "ours": {
+        "visible_correct": 19,
+        "visible_total": 68,
+        "accuracy": 0.27941176470588236,
+        "false_shuttles": 10,
+        "not_visible_total": 12,
+        "median_error_px": 83.27808835462062
+      },
+      "tracknet": {
+        "visible_correct": 52,
+        "visible_total": 68,
+        "accuracy": 0.7647058823529411,
+        "false_shuttles": 6,
+        "not_visible_total": 12,
+        "median_error_px": 4.386342439892267
+      }
+    },
+    "00684": {
+      "ours": {
+        "visible_correct": 16,
+        "visible_total": 53,
+        "accuracy": 0.3018867924528302,
+        "false_shuttles": 1,
+        "not_visible_total": 4,
+        "median_error_px": 120.11793754217713
+      },
+      "tracknet": {
+        "visible_correct": 50,
+        "visible_total": 53,
+        "accuracy": 0.9433962264150944,
+        "false_shuttles": 4,
+        "not_visible_total": 4,
+        "median_error_px": 2.8284271247461903
+      }
+    },
+    "00711": {
+      "ours": {
+        "visible_correct": 15,
+        "visible_total": 47,
+        "accuracy": 0.3191489361702128,
+        "false_shuttles": 10,
+        "not_visible_total": 11,
+        "median_error_px": 131.87007128060756
+      },
+      "tracknet": {
+        "visible_correct": 41,
+        "visible_total": 47,
+        "accuracy": 0.8723404255319149,
+        "false_shuttles": 8,
+        "not_visible_total": 11,
+        "median_error_px": 3.352610922848031
+      }
+    },
+    "00736": {
+      "ours": {
+        "visible_correct": 19,
+        "visible_total": 58,
+        "accuracy": 0.3275862068965517,
+        "false_shuttles": 1,
+        "not_visible_total": 1,
+        "median_error_px": 74.70235676006773
+      },
+      "tracknet": {
+        "visible_correct": 50,
+        "visible_total": 58,
+        "accuracy": 0.8620689655172413,
+        "false_shuttles": 1,
+        "not_visible_total": 1,
+        "median_error_px": 3.7054053967760168
+      }
+    },
+    "00761": {
+      "ours": {
+        "visible_correct": 15,
+        "visible_total": 50,
+        "accuracy": 0.3,
+        "false_shuttles": 8,
+        "not_visible_total": 8,
+        "median_error_px": 90.68627239003708
+      },
+      "tracknet": {
+        "visible_correct": 46,
+        "visible_total": 50,
+        "accuracy": 0.92,
+        "false_shuttles": 1,
+        "not_visible_total": 8,
+        "median_error_px": 0.0
+      }
+    },
+    "00783": {
+      "ours": {
+        "visible_correct": 6,
+        "visible_total": 46,
+        "accuracy": 0.13043478260869565,
+        "false_shuttles": 7,
+        "not_visible_total": 7,
+        "median_error_px": 82.8286572379002
+      },
+      "tracknet": {
+        "visible_correct": 45,
+        "visible_total": 46,
+        "accuracy": 0.9782608695652174,
+        "false_shuttles": 3,
+        "not_visible_total": 7,
+        "median_error_px": 0.0
+      }
+    }
+  }
+}

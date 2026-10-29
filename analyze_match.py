@@ -18,9 +18,11 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
+from badminton import tracknet
 from badminton.court import CourtMapper, load_corners, video_id_from_path, zone_of
 from badminton.events import EARLY_SAMPLES, STRIDE, attach_targets, detect_hits
 from badminton.predictor import ZonePredictor
+from badminton.shot_types import classify_shots
 from detect_shuttle import DEFAULT_MODEL as SHUTTLE_MODEL
 from detect_shuttle import (SHUTTLE_AIRSPACE_POLYGON, ShuttleTrajectoryTracker,
                             drop_candidates_on_players, extract_temporal_motion_candidates,
@@ -69,10 +71,22 @@ def _detect_shuttle(model, tracker, f_prev, f_curr, f_next, airspace_mask, airsp
 
 def track_video(video_path: Path, mapper: CourtMapper, person_model_path: Path, max_frames=None,
                 progress: Optional[Callable] = None, shuttle_model_path: Path = SHUTTLE_MODEL,
-                player_filter: bool = True):
-    """Pass 1: per-frame players, rackets and shuttle positions."""
+                player_filter: bool = True, shuttle_backend: str = "auto", shuttle_points: Optional[dict] = None):
+    """
+    Pass 1: per-frame players, rackets and shuttle positions.
+    shuttle_backend: "tracknet" (TrackNetV3, much more accurate on broadcast footage), "yolo"
+    (our YOLO + motion tracker) or "auto" (TrackNetV3 when its weights are installed).
+    shuttle_points: precomputed TrackNetV3 points {frame: (x, y) or None}, e.g. from a CSV.
+    """
+    use_tracknet = shuttle_points is not None or shuttle_backend == "tracknet" or (
+        shuttle_backend == "auto" and tracknet.available())
     person_model = YOLO(str(person_model_path))
-    shuttle_model = YOLO(str(shuttle_model_path))
+    tracknet_points = shuttle_points
+    if use_tracknet and tracknet_points is None:
+        tracknet_points = tracknet.TrackNetShuttle().track_video(
+            video_path, max_frames, progress=(lambda p: progress(0.3 * p, "Finding the shuttle")) if progress else None)
+    else:
+        shuttle_model = YOLO(str(shuttle_model_path))
 
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -112,9 +126,13 @@ def track_video(video_path: Path, mapper: CourtMapper, person_model_path: Path, 
                 rackets.append(((x1, y1, x2, y2), conf))
 
         tracked = players.track(candidates)
-        point, s_conf, kind = _detect_shuttle(shuttle_model, shuttle, f_prev, f_curr, f_next,
-                                              airspace_mask, airspace_polygon,
-                                              [box for _, box, _ in tracked] if player_filter else [])
+        if tracknet_points is not None:
+            point = tracknet_points.get(index)
+            s_conf, kind = 1.0, "tracknet"
+        else:
+            point, s_conf, kind = _detect_shuttle(shuttle_model, shuttle, f_prev, f_curr, f_next,
+                                                  airspace_mask, airspace_polygon,
+                                                  [box for _, box, _ in tracked] if player_filter else [])
         frames.append({
             "players": [(pid, tuple(map(float, box)), conf) for pid, box, conf in tracked],
             "rackets": [(tuple(map(float, box)), conf) for box, conf in rackets],
@@ -123,7 +141,8 @@ def track_video(video_path: Path, mapper: CourtMapper, person_model_path: Path, 
 
         index += 1
         if progress and index % 5 == 0:
-            progress(min(index / total, 1.0) * 0.7, f"Tracking frame {index}/{total}")
+            start = 0.3 if use_tracknet else 0.0
+            progress(start + min(index / total, 1.0) * (0.7 - start), f"Tracking frame {index}/{total}")
         f_prev, f_curr, ok = f_curr, f_next, f_next is not None
 
     cap.release()
@@ -221,6 +240,8 @@ def render_video(video_path, frames, events, mapper: CourtMapper, info, out_path
         if current is not None:
             lines.append((f"Shot {current['shot_no']}: Player {current['player']} from {current['zone']}",
                           (255, 255, 255)))
+            if current.get("shot_group"):
+                lines.append((f"Shot: {current['shot_group']} ({current['shot_group_conf']:.0%})", (255, 200, 120)))
             lines.append((f"Shot speed: {current['speed_kmh']:.0f} km/h", (0, 255, 255)))
             if i >= current["prediction_ready_frame"]:
                 p = current["prediction"][current["predicted_zone"]]
@@ -253,11 +274,13 @@ def to_h264(src: Path, dst: Path):
 def write_outputs(out_dir: Path, video_path, events, movement, stats, info, corners):
     with (out_dir / "events.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["shot_no", "frame", "time_s", "player", "side", "zone", "speed_kmh",
-                         "next_zone", "predicted_zone", "predicted_prob", "correct"])
+        writer.writerow(["shot_no", "frame", "time_s", "player", "side", "zone", "shot_group", "shot_group_conf",
+                         "speed_kmh", "next_zone", "predicted_zone", "predicted_prob", "correct"])
         for ev in events:
+            conf = ev.get("shot_group_conf")
             writer.writerow([ev["shot_no"], ev["frame"], round(ev["frame"] / info["fps"], 2), ev["player"],
-                             ev["side"], ev["zone"], round(ev["speed_kmh"], 1), ev.get("next_zone") or "",
+                             ev["side"], ev["zone"], ev.get("shot_group") or "", "" if conf is None else round(conf, 3),
+                             round(ev["speed_kmh"], 1), ev.get("next_zone") or "",
                              ev["predicted_zone"], round(ev["prediction"][ev["predicted_zone"]], 3),
                              "" if ev["correct"] is None else ev["correct"]])
 
@@ -296,6 +319,9 @@ def analyze_video(video_path, corners=None, person_model="yolov8n.pt", max_frame
     frames, info = track_video(video_path, mapper, person_model_path, max_frames, progress)
     predictor = ZonePredictor()
     events = build_events(frames, mapper, info["fps"], predictor)
+    if progress:
+        progress(0.7, "Classifying shot types")
+    events = classify_shots(video_path, frames, events)
     movement, stats = player_movement(frames, mapper, info["fps"])
     info["n_frames"] = len(frames)
     info["predictor"] = "random_forest" if predictor.ready else "uniform (no trained model)"
@@ -321,5 +347,6 @@ if __name__ == "__main__":
           f"prediction accuracy: {result['prediction_accuracy']}")
     for ev in result["events"]:
         print(f"  shot {ev['shot_no']:>2} frame {ev['frame']:>4}  P{ev['player']} {ev['zone']} -> "
-              f"{ev.get('next_zone')}  predicted {ev['predicted_zone']}  {ev['speed_kmh']:.0f} km/h")
+              f"{ev.get('next_zone')}  predicted {ev['predicted_zone']}  {ev['speed_kmh']:.0f} km/h  "
+              f"{ev.get('shot_group') or '-'}")
     print(f"Outputs in {OUTPUT_ROOT / result['video_id']}")

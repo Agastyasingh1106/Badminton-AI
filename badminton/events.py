@@ -16,7 +16,7 @@ MAX_GAP_SAMPLES = 3          # interpolate across up to 3 missing samples
 MIN_HIT_GAP_SAMPLES = 3      # two hits are at least 12 frames (0.4 s) apart
 TURN_ANGLE_DEG = 55.0        # direction change that counts as a hit
 SPEED_JUMP = 1.8             # speed ratio that counts as a hit
-MIN_STEP_PX = 6.0            # ignore jitter of a near-still shuttle
+MIN_STEP_PX = 10.0           # ignore jitter of a near-still shuttle (eval_hits.py: F1 0.64 -> 0.67 vs 6 px)
 EARLY_SAMPLES = 3            # samples after a hit used for prediction features
 
 
@@ -74,7 +74,9 @@ def hitter_foot(shuttle_px, boxes) -> Optional[Tuple[float, float]]:
 
 
 def detect_hits(points: Dict[int, Tuple[float, float]], mapper: CourtMapper, fps: float = 30.0,
-                stride: int = STRIDE, players_at: Optional[Callable[[int], list]] = None
+                stride: int = STRIDE, players_at: Optional[Callable[[int], list]] = None,
+                turn_angle: float = TURN_ANGLE_DEG, speed_jump: float = SPEED_JUMP,
+                min_gap_samples: int = MIN_HIT_GAP_SAMPLES, min_step_px: float = MIN_STEP_PX
                 ) -> Tuple[List[dict], List[Tuple[int, np.ndarray]]]:
     """
     Finds hits in a shuttle trajectory.
@@ -82,6 +84,7 @@ def detect_hits(points: Dict[int, Tuple[float, float]], mapper: CourtMapper, fps
     shuttle's first EARLY_SAMPLES moves after the hit (court metres, used by the predictor).
     players_at(frame) -> list of player boxes; when given, the hit zone is the hitting player's
     foot position (reliable) instead of the shuttle dropped to the floor (rough).
+    The thresholds default to the module constants (tuned with eval_hits.py).
     """
     samples = resample(points, stride)
     candidates = []
@@ -91,15 +94,15 @@ def detect_hits(points: Dict[int, Tuple[float, float]], mapper: CourtMapper, fps
         for i in range(1, len(vel)):
             v_in, v_out = vel[i - 1], vel[i]
             s_in, s_out = np.linalg.norm(v_in), np.linalg.norm(v_out)
-            if s_out < MIN_STEP_PX:
+            if s_out < min_step_px:
                 continue
             turn = _angle(v_in, v_out)
             jump = s_out / max(s_in, 1.0)
-            if turn >= TURN_ANGLE_DEG or jump >= SPEED_JUMP:
-                score = turn / TURN_ANGLE_DEG + jump / SPEED_JUMP
+            if turn >= turn_angle or jump >= speed_jump:
+                score = turn / turn_angle + jump / speed_jump
                 candidates.append((seg[i][0], seg[i][1], score))
         # The first point of a segment is a hit when the shuttle starts moving there (e.g. a serve)
-        if len(vel) and np.linalg.norm(vel[0]) >= MIN_STEP_PX:
+        if len(vel) and np.linalg.norm(vel[0]) >= min_step_px:
             candidates.append((seg[0][0], seg[0][1], 0.5))
 
     candidates.sort(key=lambda c: c[0])
@@ -107,7 +110,7 @@ def detect_hits(points: Dict[int, Tuple[float, float]], mapper: CourtMapper, fps
     # Keep the strongest candidate within each short window
     hits = []
     for frame, p, score in candidates:
-        if hits and frame - hits[-1][0] < MIN_HIT_GAP_SAMPLES * stride:
+        if hits and frame - hits[-1][0] < min_gap_samples * stride:
             if score > hits[-1][2]:
                 hits[-1] = (frame, p, score)
             continue
@@ -151,12 +154,19 @@ def early_moves(event, sample_index, mapper, stride=STRIDE) -> List[Tuple[float,
 
 
 def shot_speed_kmh(event, sample_index, mapper, fps=30.0, stride=STRIDE) -> float:
-    """Speed right after the hit: the smaller of the first two moves, so one tracking jump can't inflate it."""
+    """
+    Speed right after the hit: the mean of the first two moves on the court plane (points dropped to
+    the floor at hit height), or the smaller one when they differ over 3x (a tracking jump).
+    Measuring across the court width alone undercounts shots that travel down the court, which move
+    mostly up or down the image. A near-side smash still reads low: moving away from the camera and
+    down at once barely moves the shuttle on screen.
+    """
     pts = [sample_index.get(event["frame"] + j * stride) for j in range(3)]
-    steps = [np.linalg.norm(np.array(b) - np.array(a)) for a, b in zip(pts, pts[1:]) if a is not None and b is not None]
+    steps = [float(np.hypot(*np.subtract(mapper.ground_point(b), mapper.ground_point(a))))
+             for a, b in zip(pts, pts[1:]) if a is not None and b is not None]
     if not steps:
         return 0.0
-    metres = min(steps) / mapper.px_per_metre(event["px"])
+    metres = min(steps) if max(steps) > 3 * max(min(steps), 1e-3) else float(np.mean(steps))
     return float(min(metres * fps / stride * 3.6, 420.0))
 
 

@@ -35,6 +35,24 @@ runs/zone_model/hit_previews/
 # Unlabelled rally videos and data generated from them (auto_calibrate_court.py, track_rallies.py)
 dataset/rallies/
 runs/rally_tracks/
+runs/rally_tracks_yolo/
 runs/court_fit/previews/
+
+# Shot-type pose keypoints (258 MB, from the group member's extractor; train_shot_classifier.py)
+dataset/shot_keypoints.csv
 runs/*.log
 runs/*_log.txt
+
+# TrackNetV3 outputs (regenerate with external/run_tracknet_all.sh) and benchmark scratch
+runs/tracknet/
+
+# TrackNetV3 weights (142 MB, over the GitHub file limit; see README) and shot-eval caches
+models/tracknetv3/*.pt
+runs/shot_eval/cache/
+runs/shot_eval/poses.pkl
+
+# Local-only: Claude Code app settings, unused dataset CSVs, eval logs and stale results
+.claude/
+dataset/shuttle_csv/
+runs/shot_eval/*_log.txt
+runs/shot_eval/results.json
