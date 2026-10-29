@@ -189,11 +189,18 @@ with tab_shots:
                      labels={"shot_no": "Shot", "speed_kmh": "Speed after hit (km/h)"},
                      title="Shot speed through the rally (label = zone the shot was hit from)")
         st.plotly_chart(fig, use_container_width=True)
-        table = events[["shot_no", "time_s", "Player", "zone", "speed_kmh", "next_zone", "predicted_zone", "correct"]]
+        if "shot_group" not in events:  # analysed before shot groups were added
+            events["shot_group"], events["shot_group_conf"] = None, None
+        table = events[["shot_no", "time_s", "Player", "zone", "shot_group", "shot_group_conf", "speed_kmh",
+                        "next_zone", "predicted_zone", "correct"]]
         st.dataframe(table.rename(columns={"shot_no": "Shot", "time_s": "Time (s)", "zone": "Hit from",
+                                           "shot_group": "Shot group", "shot_group_conf": "Group confidence",
                                            "speed_kmh": "Speed (km/h)", "next_zone": "Went to",
                                            "predicted_zone": "Predicted", "correct": "Prediction correct"}),
-                     use_container_width=True, hide_index=True)
+                     use_container_width=True, hide_index=True,
+                     column_config={"Group confidence": st.column_config.NumberColumn(format="percent")})
+        st.caption("Shot group: pose-based (serve, clear/lift, smash, drop/net, drive/push, defensive), "
+                   "adapted to broadcast footage from hand-labelled hits; empty when no model beat guessing.")
         csv_path = ANALYSIS_DIR / video_id / "events.csv"
         if csv_path.is_file():
             st.download_button("Download events.csv", csv_path.read_bytes(), file_name=f"{video_id}_events.csv")
