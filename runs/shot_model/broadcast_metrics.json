@@ -1,0 +1,14 @@
+{
+  "n_hits": 195,
+  "n_rallies": 15,
+  "evaluation": "leave-one-rally-out",
+  "group_accuracy": {
+    "pretrained": 0.18974358974358974,
+    "embed_lr": 0.38974358974358975,
+    "finetune": 0.4564102564102564,
+    "most_common": 0.3282051282051282,
+    "embed_lr+serve_rule": 0.41025641025641024,
+    "finetune+serve_rule": 0.4564102564102564
+  },
+  "chosen": "finetune"
+}

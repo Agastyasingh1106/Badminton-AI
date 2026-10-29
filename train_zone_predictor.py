@@ -26,6 +26,9 @@ from badminton.predictor import (FEATURE_NAMES, LOCAL_ZONES, MODEL_DIR, MODEL_PA
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATASET_DIR = PROJECT_ROOT / "training" / "shuttlecock_yolo_dataset"
 LABEL_NAME = re.compile(r"(?P<video>\d+)_predict_f(?P<frame>\d+)$")
+# Practice-hall clips among the labelled rallies: different footage from the broadcast matches
+# the project is about, so they are left out (the hall rallies in 401-800 are never tracked)
+HALL_VIDEOS = {"00354", "00359", "00360", "00370", "00389", "00397"}
 
 
 def load_trajectories(split: str):
@@ -47,7 +50,8 @@ def load_trajectories(split: str):
             _, cx, cy, *_ = map(float, line[0].split())
             tracks[video][frame] = (cx * w, cy * h)
     # Hand-labelled clips (label_shuttle.py) are sparse and off the 4-frame grid: not rally tracks
-    return {video: pts for video, pts in tracks.items() if all(f % 4 == 0 for f in pts)}
+    return {video: pts for video, pts in tracks.items()
+            if all(f % 4 == 0 for f in pts) and video not in HALL_VIDEOS}
 
 
 def split_trajectories():

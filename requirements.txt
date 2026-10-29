@@ -13,3 +13,5 @@ streamlit>=1.35.0
 streamlit-image-coordinates>=0.1.6
 plotly>=5.18.0
 imageio-ffmpeg>=0.4.9
+parse>=1.19.0
+tqdm>=4.66.0

@@ -13,6 +13,7 @@ Output: runs/rally_tracks/<video_id>.json  {"info": ..., "shuttle": {frame: [x, 
 """
 
 import argparse
+import csv
 import json
 import time
 from pathlib import Path
@@ -20,8 +21,19 @@ from pathlib import Path
 from badminton.court import PROJECT_ROOT, CourtMapper, load_corners, video_id_from_path
 
 TRACKS_DIR = PROJECT_ROOT / "runs" / "rally_tracks"
+TRACKNET_CSV_DIR = PROJECT_ROOT / "runs" / "tracknet"
 # The benchmark clip shown in the dashboard: never used for training
 HELD_OUT = {"00467"}
+
+
+def cached_tracknet(video: str):
+    """TrackNetV3 points from runs/tracknet/<video>_ball.csv (external batch run), if present."""
+    path = TRACKNET_CSV_DIR / f"{video}_ball.csv"
+    if not path.is_file():
+        return None
+    with path.open(encoding="utf-8") as f:
+        return {int(r["Frame"]): ((int(r["X"]), int(r["Y"])) if r["Visibility"] == "1" else None)
+                for r in csv.DictReader(f)}
 
 
 def save_tracks(path: Path, frames, info):
@@ -41,6 +53,8 @@ def main():
     parser.add_argument("folder", type=Path, help="Folder of rally .mp4 files.")
     parser.add_argument("--shard", default="0/1", help="i/n: process every n-th video starting at i.")
     parser.add_argument("--person-model", type=Path, default=PROJECT_ROOT / "yolov8n.pt")
+    parser.add_argument("--ids", type=Path, help="Text file of video ids to track (one per line), e.g. "
+                                                 "runs/tracknet/broadcast_ids.txt to skip the practice hall.")
     args = parser.parse_args()
 
     from analyze_match import track_video
@@ -48,8 +62,10 @@ def main():
     shard, n_shards = map(int, args.shard.split("/"))
     corners = load_corners()
     TRACKS_DIR.mkdir(parents=True, exist_ok=True)
+    wanted = set(args.ids.read_text(encoding="utf-8").split()) if args.ids else None
     videos = [p for p in sorted(args.folder.glob("*.mp4"))
-              if video_id_from_path(p) in corners and video_id_from_path(p) not in HELD_OUT]
+              if video_id_from_path(p) in corners and video_id_from_path(p) not in HELD_OUT
+              and (wanted is None or video_id_from_path(p) in wanted)]
     videos = videos[shard::n_shards]
     todo = [p for p in videos if not (TRACKS_DIR / f"{video_id_from_path(p)}.json").is_file()]
     print(f"Shard {args.shard}: {len(videos)} calibrated videos, {len(todo)} still to track")
@@ -57,7 +73,8 @@ def main():
     for i, path in enumerate(todo, 1):
         video = video_id_from_path(path)
         start = time.time()
-        frames, info = track_video(path, CourtMapper(corners[video]), args.person_model)
+        frames, info = track_video(path, CourtMapper(corners[video]), args.person_model,
+                                   shuttle_points=cached_tracknet(video))
         info["n_frames"] = len(frames)
         save_tracks(TRACKS_DIR / f"{video}.json", frames, info)
         seen = sum(f["shuttle"] is not None for f in frames)
