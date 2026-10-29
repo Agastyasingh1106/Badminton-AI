@@ -194,12 +194,12 @@ with tab_shots:
         table = events[["shot_no", "time_s", "Player", "zone", "shot_group", "shot_group_conf", "speed_kmh",
                         "next_zone", "predicted_zone", "correct"]]
         st.dataframe(table.rename(columns={"shot_no": "Shot", "time_s": "Time (s)", "zone": "Hit from",
-                                           "shot_group": "Shot", "shot_group_conf": "Shot confidence",
+                                           "shot_group": "Shot group", "shot_group_conf": "Group confidence",
                                            "speed_kmh": "Speed (km/h)", "next_zone": "Went to",
                                            "predicted_zone": "Predicted", "correct": "Prediction correct"}),
                      use_container_width=True, hide_index=True,
-                     column_config={"Shot confidence": st.column_config.NumberColumn(format="percent")})
-        st.caption("Shot: pose-based shot group (serve, clear/lift, smash, drop/net, drive/push, defensive), "
+                     column_config={"Group confidence": st.column_config.NumberColumn(format="percent")})
+        st.caption("Shot group: pose-based (serve, clear/lift, smash, drop/net, drive/push, defensive), "
                    "adapted to broadcast footage from hand-labelled hits; empty when no model beat guessing.")
         csv_path = ANALYSIS_DIR / video_id / "events.csv"
         if csv_path.is_file():
