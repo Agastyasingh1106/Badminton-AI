@@ -31,3 +31,10 @@ runs/detect/shuttle_predict/
 # Dashboard uploads and scratch analysis
 runs/uploads/
 runs/zone_model/hit_previews/
+
+# Unlabelled rally videos and data generated from them (auto_calibrate_court.py, track_rallies.py)
+dataset/rallies/
+runs/rally_tracks/
+runs/court_fit/previews/
+runs/*.log
+runs/*_log.txt
