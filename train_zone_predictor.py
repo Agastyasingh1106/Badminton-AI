@@ -1,10 +1,11 @@
 """
 Trains the next-zone predictor from the labelled shuttle positions in
-training/shuttlecock_yolo_dataset (one label every 4th frame, 51 rally videos).
+training/shuttlecock_yolo_dataset (one label every 4th frame, 51 rally videos), plus the
+rallies tracked by our own pipeline with track_rallies.py (runs/rally_tracks, no labels needed).
 
-Steps: labels -> shuttle trajectory per video -> hits with court zones (needs court_corners.json)
-       -> features -> Random Forest. Scored on the val videos against two simple baselines,
-       then refit on all videos for the dashboard.
+Steps: trajectory per video -> hits with court zones (needs court_corners.json)
+       -> features -> Random Forest. Scored with grouped cross-validation against two simple
+       baselines, with and without the tracked rallies, then refit on all videos for the dashboard.
 """
 
 import argparse
@@ -95,14 +96,34 @@ def rallies_for(trajectories: dict, corners: dict, finder: "PlayerFinder"):
     return rallies, skipped
 
 
+def tracked_rallies(corners: dict, exclude=()):
+    """Rallies from runs/rally_tracks: our tracker's shuttle path and player boxes, no labels."""
+    from track_rallies import HELD_OUT, TRACKS_DIR
+
+    rallies = {}
+    for path in sorted(TRACKS_DIR.glob("*.json")):
+        video = path.stem
+        if video in HELD_OUT or video in exclude or video not in corners:
+            continue
+        data = json.loads(path.read_text(encoding="utf-8"))
+        points = {int(f): tuple(p) for f, p in data["shuttle"].items()}
+        boxes = {int(f): b for f, b in data["players"].items()}
+        mapper = CourtMapper(corners[video])
+        events, samples = detect_hits(points, mapper, fps=data["info"]["fps"],
+                                      players_at=lambda f: boxes.get(f, []))
+        rallies[video] = attach_targets(events, samples, mapper)
+    return rallies
+
+
 def top_k_accuracy(probs: np.ndarray, y: np.ndarray, k: int) -> float:
     top = np.argsort(-probs, axis=1)[:, :k] + 1
     return float(np.mean([t in row for t, row in zip(y, top)])) if len(y) else 0.0
 
 
 def make_model():
-    # Shallow forest: the data is small (~400 shots), deeper trees just memorise it
-    return RandomForestClassifier(n_estimators=400, max_depth=5, min_samples_leaf=5, random_state=42)
+    # Fairly shallow forest: with ~3,500 shots, depth 8 beat depth 5 and 12, unlimited depth and
+    # gradient boosting in grouped cross-validation; deeper trees start memorising rallies
+    return RandomForestClassifier(n_estimators=400, max_depth=8, min_samples_leaf=10, random_state=42, n_jobs=-1)
 
 
 def as_local_probs(model, X) -> np.ndarray:
@@ -112,42 +133,65 @@ def as_local_probs(model, X) -> np.ndarray:
     return probs
 
 
-def evaluate(rallies: dict, folds: int = 5):
-    """Grouped k-fold: every rally is scored by a model that never saw that rally."""
+def evaluate(labelled: dict, tracked: dict, folds: int = 5):
+    """
+    Grouped k-fold over all rallies: every rally is scored by models that never saw it.
+    Each fold trains the forest twice, on the labelled rallies only and on labelled + tracked,
+    so both are scored on exactly the same unseen shots (split by where the test rally came from).
+    """
     from sklearn.model_selection import GroupKFold
 
-    X, y, zones, groups = [], [], [], []
-    for video, events in rallies.items():
-        Xv, yv, zv = dataset_from_rallies([events])
-        X.extend(Xv); y.extend(yv); zones.extend(zv); groups.extend([video] * len(yv))
-    X, y, groups = np.array(X), np.array(y), np.array(groups)
-    print(f"Shots with a known next zone: {len(y)} from {len(set(groups))} rallies")
+    X, y, zones, groups, source = [], [], [], [], []
+    for name, rallies in (("labelled", labelled), ("tracked", tracked)):
+        for video, events in rallies.items():
+            Xv, yv, zv = dataset_from_rallies([events])
+            X.extend(Xv); y.extend(yv); zones.extend(zv)
+            groups.extend([video] * len(yv)); source.extend([name] * len(yv))
+    X, y, groups, source = np.array(X), np.array(y), np.array(groups), np.array(source)
+    print(f"Shots with a known next zone: {len(y)} from {len(set(groups))} rallies "
+          f"({(source == 'labelled').sum()} labelled, {(source == 'tracked').sum()} tracked)")
     if len(y) < 30:
         raise SystemExit("Not enough shots to train. Calibrate more videos with calibrate_court.py.")
 
-    scores = {name: {1: [], 2: []} for name in ("random_forest", "markov_baseline", "majority_baseline")}
+    methods = ("random_forest", "random_forest_labelled_only", "markov_baseline", "majority_baseline")
+    test_sets = ("all", "labelled", "tracked")
+    scores = {m: {t: {1: [], 2: []} for t in test_sets} for m in methods}
     importances = []
     for train_idx, test_idx in GroupKFold(folds).split(X, y, groups):
         model = make_model().fit(X[train_idx], y[train_idx])
+        lab_idx = train_idx[source[train_idx] == "labelled"]
+        model_lab = make_model().fit(X[lab_idx], y[lab_idx])
         importances.append(model.feature_importances_)
         markov = MarkovBaseline().fit([zones[i] for i in train_idx], y[train_idx])
         majority = Counter(y[train_idx].tolist()).most_common(1)[0][0]
         mj = np.zeros((len(test_idx), len(LOCAL_ZONES)))
         mj[:, majority - 1] = 1.0
         mj[:, (majority % 6)] = 0.5  # arbitrary second guess so top-2 is defined
-        for name, probs in (("random_forest", as_local_probs(model, X[test_idx])),
-                            ("markov_baseline", np.array([markov.predict_proba(zones[i]) for i in test_idx])),
-                            ("majority_baseline", mj)):
-            for k in (1, 2):
-                scores[name][k].append((top_k_accuracy(probs, y[test_idx], k), len(test_idx)))
+        all_probs = {"random_forest": as_local_probs(model, X[test_idx]),
+                     "random_forest_labelled_only": as_local_probs(model_lab, X[test_idx]),
+                     "markov_baseline": np.array([markov.predict_proba(zones[i]) for i in test_idx]),
+                     "majority_baseline": mj}
+        for test_set in test_sets:
+            keep = np.ones(len(test_idx), bool) if test_set == "all" else source[test_idx] == test_set
+            if not keep.any():
+                continue
+            for name, probs in all_probs.items():
+                for k in (1, 2):
+                    scores[name][test_set][k].append(
+                        (top_k_accuracy(probs[keep], y[test_idx][keep], k), int(keep.sum())))
 
-    metrics = {}
-    for name, by_k in scores.items():
-        metrics[name] = {key: float(sum(a * n for a, n in by_k[k]) / sum(n for _, n in by_k[k]))
-                         for key, k in (("accuracy", 1), ("top2_accuracy", 2))}
+    def pooled(by_k):
+        if not by_k[1]:
+            return None
+        return {key: float(sum(a * n for a, n in by_k[k]) / sum(n for _, n in by_k[k]))
+                for key, k in (("accuracy", 1), ("top2_accuracy", 2))}
+
+    metrics = {name: pooled(scores[name]["all"]) for name in methods}
     metrics["random_chance"] = {"accuracy": 1 / 6, "top2_accuracy": 2 / 6}
+    metrics["by_test_rallies"] = {t: {name: pooled(scores[name][t]) for name in methods} for t in test_sets}
     metrics["evaluation"] = f"{folds}-fold cross-validation grouped by rally video"
     metrics["n_shots"], metrics["n_videos"] = int(len(y)), int(len(set(groups)))
+    metrics["n_videos_labelled"], metrics["n_videos_tracked"] = len(labelled), len(tracked)
     metrics["feature_importance"] = dict(sorted(
         zip(FEATURE_NAMES, map(float, np.mean(importances, axis=0))), key=lambda kv: -kv[1]))
     return metrics
@@ -176,6 +220,8 @@ def preview_hits(video: str, rally, corners, out_dir: Path):
 def main():
     parser = argparse.ArgumentParser(description="Train the next-zone predictor.")
     parser.add_argument("--preview", nargs="*", default=[], help="Video ids to save hit preview images for.")
+    parser.add_argument("--labelled-only", action="store_true",
+                        help="Ignore the rallies tracked with track_rallies.py.")
     args = parser.parse_args()
 
     corners = load_corners()
@@ -195,13 +241,22 @@ def main():
         print(f"{name}: {len(rallies)} videos, {sum(counts)} shots detected "
               f"(avg {np.mean(counts) if counts else 0:.1f} per video)")
 
-    all_rallies = {**train_rallies, **val_rallies}
-    metrics = evaluate(all_rallies)
+    labelled = {**train_rallies, **val_rallies}
+    tracked = {} if args.labelled_only else tracked_rallies(corners, exclude=labelled)
+    if tracked:
+        evs = [e for r in tracked.values() for e in r]
+        print(f"tracked: {len(tracked)} videos, {len(evs)} shots detected "
+              f"(avg {len(evs) / len(tracked):.1f} per video)")
+    metrics = evaluate(labelled, tracked)
     print(f"\nResults on unseen rallies ({metrics['evaluation']}):")
-    for name in ("random_forest", "markov_baseline", "majority_baseline", "random_chance"):
-        m = metrics[name]
-        print(f"  {name:<18} accuracy {m['accuracy']:.1%}   top-2 {m['top2_accuracy']:.1%}")
+    for test_set, by_method in metrics["by_test_rallies"].items():
+        if by_method["random_forest"] is None:
+            continue
+        print(f"  tested on {test_set} rallies:")
+        for name, m in (*by_method.items(), ("random_chance", metrics["random_chance"])):
+            print(f"    {name:<28} accuracy {m['accuracy']:.1%}   top-2 {m['top2_accuracy']:.1%}")
     print("  Top features:", ", ".join(list(metrics["feature_importance"])[:5]))
+    all_rallies = {**labelled, **tracked}
 
     # Final model for the dashboard: refit on every calibrated video
     X, y, zones = dataset_from_rallies(list(all_rallies.values()))
