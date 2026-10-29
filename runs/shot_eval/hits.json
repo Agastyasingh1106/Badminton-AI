@@ -1,0 +1,89 @@
+{
+  "tolerance_frames": 4,
+  "videos": 15,
+  "labelled": 200,
+  "detected": 192,
+  "matched": 131,
+  "precision": 0.6822916666666666,
+  "recall": 0.655,
+  "f1": 0.6683673469387754,
+  "side_correct": 0.9236641221374046,
+  "median_offset_frames": -1.0,
+  "per_video": {
+    "00412": {
+      "labelled": 6,
+      "detected": 3,
+      "matched": 1
+    },
+    "00438": {
+      "labelled": 5,
+      "detected": 6,
+      "matched": 2
+    },
+    "00475": {
+      "labelled": 17,
+      "detected": 16,
+      "matched": 13
+    },
+    "00498": {
+      "labelled": 9,
+      "detected": 10,
+      "matched": 5
+    },
+    "00529": {
+      "labelled": 20,
+      "detected": 20,
+      "matched": 17
+    },
+    "00551": {
+      "labelled": 7,
+      "detected": 6,
+      "matched": 4
+    },
+    "00580": {
+      "labelled": 4,
+      "detected": 5,
+      "matched": 3
+    },
+    "00608": {
+      "labelled": 8,
+      "detected": 5,
+      "matched": 3
+    },
+    "00632": {
+      "labelled": 21,
+      "detected": 20,
+      "matched": 13
+    },
+    "00658": {
+      "labelled": 40,
+      "detected": 41,
+      "matched": 26
+    },
+    "00684": {
+      "labelled": 2,
+      "detected": 3,
+      "matched": 2
+    },
+    "00711": {
+      "labelled": 18,
+      "detected": 17,
+      "matched": 10
+    },
+    "00736": {
+      "labelled": 19,
+      "detected": 20,
+      "matched": 15
+    },
+    "00761": {
+      "labelled": 16,
+      "detected": 13,
+      "matched": 12
+    },
+    "00783": {
+      "labelled": 8,
+      "detected": 7,
+      "matched": 5
+    }
+  }
+}
