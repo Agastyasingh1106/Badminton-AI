@@ -60,13 +60,14 @@ Details: `runs/shuttle_eval/benchmark.json`, `runs/shot_eval/hits.json`, `runs/s
 ```bash
 git clone https://github.com/Agastyasingh1106/Badminton-AI.git
 cd Badminton-AI
-pip install -r requirements.txt
+pip install -r requirements.txt     # Python 3.10
+python download_weights.py          # TrackNetV3 shuttle weights, 142 MB
 streamlit run app.py
 ```
 
-The dashboard opens on the sample rally (00467) with its results already computed. Pick **Upload a video** in the sidebar to analyse another rally: click the 4 court corners, then **▶ Run analysis**.
+The dashboard opens on the sample rally (00467) with its results already computed. Pick **Upload a video** in the sidebar to analyse another rally: click the 4 court corners, then **▶ Run analysis**. Re-running the sample rally gives the same shots, speeds and predictions as in `runs/analysis/00467/`.
 
-- **Shuttle weights:** TrackNetV3's weights (142 MB) are not in git. Download `TrackNetV3_ckpts.zip` from the [TrackNetV3 repository](https://github.com/qaz812345/TrackNetV3) and put `TrackNet_best.pt` and `InpaintNet_best.pt` in `models/tracknetv3/`. Without them the pipeline falls back to the less accurate YOLO shuttle tracker.
+- **Shuttle weights:** TrackNetV3's weights are too big for git, so `download_weights.py` fetches them from this repository's [release](https://github.com/Agastyasingh1106/Badminton-AI/releases/tag/tracknetv3-weights) and checks them. Without them the pipeline falls back to the much less accurate YOLO shuttle tracker, and the dashboard shows a warning.
 - **GPU:** on Windows `pip` installs CPU-only PyTorch. With an NVIDIA GPU, install the CUDA build:
   ```bash
   pip install --force-reinstall --no-deps torch==2.14.1+cu130 torchvision==0.29.1+cu130 --index-url https://download.pytorch.org/whl/cu130
@@ -105,6 +106,7 @@ python finetune_shot_classifier.py   # adapts it to broadcast footage as 6 shot 
 ```text
 app.py                     Streamlit dashboard
 analyze_match.py           Full pipeline for one rally → annotated video, events.csv, summary.json
+download_weights.py        Fetches the TrackNetV3 weights from the GitHub release
 badminton/
   court.py                 Court homography and zones
   tracknet.py              TrackNetV3 shuttle tracking

@@ -86,6 +86,9 @@ def track_video(video_path: Path, mapper: CourtMapper, person_model_path: Path, 
         tracknet_points = tracknet.TrackNetShuttle().track_video(
             video_path, max_frames, progress=(lambda p: progress(0.3 * p, "Finding the shuttle")) if progress else None)
     else:
+        if shuttle_backend == "auto":
+            print("WARNING: TrackNetV3 weights not found in models/tracknetv3/ - using the much less accurate "
+                  "YOLO shuttle tracker. Run `python download_weights.py` to get them.")
         shuttle_model = YOLO(str(shuttle_model_path))
 
     cap = cv2.VideoCapture(str(video_path))

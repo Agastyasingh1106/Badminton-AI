@@ -14,6 +14,7 @@ import streamlit as st
 
 from badminton.court import (ALL_ZONES, COURT_LENGTH, COURT_WIDTH, NET_Y, SIDE_ZONES, load_corners,
                              save_corners, video_id_from_path, zone_center_m, zone_rect_m)
+from badminton import tracknet
 from badminton.predictor import MODEL_DIR
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -101,6 +102,9 @@ person_model = st.sidebar.selectbox("Player detector", ["yolov8n.pt (fast)", "yo
 run = st.sidebar.button("▶ Run analysis", type="primary", disabled=corners is None and not remark)
 
 st.title("Badminton Rally Analytics")
+if not tracknet.available():
+    st.warning("TrackNetV3 weights are missing, so new analyses use the much less accurate YOLO shuttle tracker. "
+               "Run `python download_weights.py` and restart the dashboard.")
 
 if remark:
     from streamlit_image_coordinates import streamlit_image_coordinates
