@@ -20,13 +20,12 @@ Thumbs.db
 # (Automatically downloaded on demand by Ultralytics: YOLO('yolov8x.pt'))
 yolov8x.pt
 
-# Scratch run folders (final videos are organized in output_videos/)
+# Scratch run folders
 runs/detect/predict/
 runs/detect/predict-4/
 runs/detect/badminton/
 runs/detect/shuttle-only/
 runs/detect/shuttle_predict/
-!runs/detect/shuttlecock/
 
 # Dashboard uploads and scratch analysis
 runs/uploads/

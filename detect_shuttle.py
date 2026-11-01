@@ -16,10 +16,8 @@ from ultralytics import YOLO
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_VIDEO = PROJECT_ROOT / "sample_dataset" / "00467.mp4"
-ORIGINAL_MODEL = PROJECT_ROOT / "runs" / "detect" / "shuttlecock" / "weights" / "best.pt"
-# Fine-tuned with hand-labelled frames of new footage (label_shuttle.py); used when present
-FINETUNED_MODEL = PROJECT_ROOT / "runs" / "detect" / "shuttlecock_v2" / "weights" / "best.pt"
-DEFAULT_MODEL = FINETUNED_MODEL if FINETUNED_MODEL.is_file() else ORIGINAL_MODEL
+# Fine-tuned with hand-labelled frames of new footage (label_shuttle.py)
+DEFAULT_MODEL = PROJECT_ROOT / "runs" / "detect" / "shuttlecock_v2" / "weights" / "best.pt"
 FALLBACK_MODEL = PROJECT_ROOT / "yolov8n.pt"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "runs" / "detect" / "shuttle_predict"
 
