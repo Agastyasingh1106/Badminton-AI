@@ -157,7 +157,7 @@ python calibrate_court.py                      # works from the repository as is
 python auto_calibrate_court.py dataset/rallies # needs the rally videos
 ```
 
-**2. Next-zone model** — track the 320 broadcast rallies listed in `runs/tracknet/broadcast_ids.txt` (practice-hall footage left out), then train and cross-validate. Without the tracked rallies, `train_zone_predictor.py` still runs but only learns from the 45 labelled rallies and scores lower than the 54% above.
+**2. Next-zone model** — track the 320 broadcast rallies listed in `runs/tracknet/broadcast_ids.txt` (practice-hall footage left out), then train and cross-validate. Without the tracked rallies, `train_zone_predictor.py` still runs but only learns from the 44 labelled rallies and scores lower than the 54% above.
 
 ```bash
 python track_rallies.py dataset/rallies --ids runs/tracknet/broadcast_ids.txt --shard 0/2
