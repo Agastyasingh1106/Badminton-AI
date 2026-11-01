@@ -57,21 +57,82 @@ Details: `runs/shuttle_eval/benchmark.json`, `runs/shot_eval/hits.json`, `runs/s
 
 ## Run the demo
 
+It runs on any computer with **Python 3.10**. An NVIDIA GPU makes analysing new videos about 3× faster, but everything works on a CPU and gives the same results.
+
+### 1. Get the code and install
+
 ```bash
 git clone https://github.com/Agastyasingh1106/Badminton-AI.git
 cd Badminton-AI
-pip install -r requirements.txt     # Python 3.10
-python download_weights.py          # TrackNetV3 shuttle weights, 142 MB
+```
+
+Create a virtual environment so the pinned packages don't clash with anything else:
+
+| Windows | macOS / Linux |
+|---|---|
+| `py -3.10 -m venv .venv` | `python3.10 -m venv .venv` |
+| `.venv\Scripts\activate` | `source .venv/bin/activate` |
+
+Then install the packages and download the shuttle-tracking weights (142 MB, from this repository's [release](https://github.com/Agastyasingh1106/Badminton-AI/releases/tag/tracknetv3-weights)):
+
+```bash
+pip install -r requirements.txt
+python download_weights.py
+```
+
+### 2. Pick CPU or GPU
+
+The code uses an NVIDIA GPU automatically when PyTorch can see one, and the CPU otherwise. There is nothing to configure; only the PyTorch build you install matters.
+
+| Your computer | What to do |
+|---|---|
+| **Windows, no NVIDIA GPU** | Nothing. Step 1 installed the CPU build. |
+| **Windows or Linux with an NVIDIA GPU** | Swap in the CUDA build (below). |
+| **Linux, no NVIDIA GPU** | Works as is. Optionally swap in the CPU build (below) to save a few GB of disk. |
+| **Mac with Apple Silicon (M1–M4)** | Nothing. It runs on the CPU. |
+| **Intel Mac** | Not supported: PyTorch 2.14 has no build for it. |
+| **AMD or Intel graphics** | Nothing. It runs on the CPU. |
+
+**Swap in the CUDA build (NVIDIA GPU).** Run `nvidia-smi` and look at **CUDA Version** in the top-right corner of its output. Then run the matching command:
+
+| `nvidia-smi` shows | Command |
+|---|---|
+| CUDA 13.0 or higher | `pip install --force-reinstall --no-deps torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cu130` |
+| CUDA 12.6 – 12.9 | `pip install --force-reinstall --no-deps torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cu126` |
+| Lower than 12.6 | Update the NVIDIA driver, or stay on the CPU. |
+
+**Swap in the CPU build (Linux, optional):**
+
+```bash
+pip install --force-reinstall --no-deps torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cpu
+```
+
+Install `requirements.txt` first and swap PyTorch afterwards, as above. Installing PyTorch first from the PyTorch index fails, because one of its dependencies only exists on the normal Python package index.
+
+**Check which one you're on:**
+
+```bash
+python -c "import torch; print('GPU:', torch.cuda.get_device_name(0)) if torch.cuda.is_available() else print('CPU')"
+```
+
+### 3. Run
+
+```bash
 streamlit run app.py
 ```
 
-The dashboard opens on the sample rally (00467) with its results already computed. Pick **Upload a video** in the sidebar to analyse another rally: click the 4 court corners, then **▶ Run analysis**. Re-running the sample rally gives the same shots, speeds and predictions as in `runs/analysis/00467/`.
+The dashboard opens on the sample rally (00467) with its results already computed, so it shows instantly on any machine. Pick **Upload a video** in the sidebar to analyse another rally: click the 4 court corners, then **▶ Run analysis**.
 
-- **Shuttle weights:** TrackNetV3's weights are too big for git, so `download_weights.py` fetches them from this repository's [release](https://github.com/Agastyasingh1106/Badminton-AI/releases/tag/tracknetv3-weights) and checks them. Without them the pipeline falls back to the much less accurate YOLO shuttle tracker, and the dashboard shows a warning.
-- **GPU:** on Windows `pip` installs CPU-only PyTorch. With an NVIDIA GPU, install the CUDA build:
-  ```bash
-  pip install --force-reinstall --no-deps torch==2.14.1+cu130 torchvision==0.29.1+cu130 --index-url https://download.pytorch.org/whl/cu130
-  ```
+How long analysing the 9-second sample rally takes (measured on one laptop):
+
+| Hardware | Time |
+|---|---|
+| NVIDIA RTX 4050 Laptop GPU | 41 s |
+| CPU only (AMD Ryzen 7 8845HS) | 118 s |
+
+CPU and GPU give the same shots, zones, speeds, shot groups and predictions. Only the shot-group confidence can differ in its last digit.
+
+Without the downloaded weights the pipeline falls back to a much less accurate shuttle tracker, and the dashboard shows a warning.
 
 **Command line:** `python analyze_match.py sample_dataset/00467.mp4` writes the annotated video, `events.csv` and `summary.json` to `runs/analysis/00467/`.
 
