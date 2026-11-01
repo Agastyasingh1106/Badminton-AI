@@ -1,136 +1,144 @@
 # Badminton AI 🏸
 
-Advanced Computer Vision system for automated badminton match analysis, player tracking with persistent identities, and high-accuracy aerial shuttlecock trajectory detection.
+Rally analysis from a single broadcast camera: it tracks both players and the shuttle, finds every hit, measures shot speed, recognises the type of shot from the player's pose, and predicts which zone of the court the shuttle will land in next — shown in an annotated video and an interactive dashboard.
 
-![Badminton AI Overview](sample_dataset/00467img.png)
-
----
-
-## 🌟 Key Features
-
-1. **High-Visibility Player Tracking (Player 1 & 2)**
-   - Bold red bounding boxes (`#FF0000`) with solid colored header badges and white text for high contrast against green court surfaces.
-   - **`TwoPlayerTracker`**: Spatial court-partition algorithm that stably assigns **Player 1** to the far court (top half) and **Player 2** to the near court (bottom half). Prevents ID flipping or player loss during fast smashes and lunges.
-
-2. **Hybrid Shuttlecock Detector & Flight Tracker (`detect_shuttle.py`)**
-   - **Dual-Stream Detection**: Fuses YOLOv8 deep learning proposals with 3-frame symmetric temporal motion differencing ($|F_t - F_{t-1}| \land |F_{t+1} - F_t|$) and white reflectance masking.
-   - **3D Flight Airspace Polygon**: Extends tracking vertically above the court floor to capture high clears, lifts, and steep smashes.
-   - **Physics-Guided Trajectory Predictor**: Employs velocity smoothing, aerodynamic drag, and downward gravity modeling to bridge occlusions across the net.
-   - **Telemetry HUD**: Displays real-time estimated flight velocity in **km/h**, tracking status, and broadcast-style fading trajectory trails.
-
-3. **Dedicated Training Pipeline (`train_shuttlecock.py`)**
-   - Curated dataset loader with balanced positive (visible shuttlecock) and negative frames.
-   - Tuned small-object hyperparameters (`box=8.5`, `mosaic=0.5`, `scale=0.3`, `close_mosaic=3`).
-   - Note: the dataset's `*_predict` videos (rallies 351–400) have TrackNet's red dot drawn on the shuttle, so the original model's 99.4% mAP50 on them mostly measures dot detection. Tracking on clean footage is measured with `eval_shuttle_tracking.py` against hand labels instead.
+![Dashboard](docs/dashboard.jpg)
 
 ---
 
-## 📁 Repository Structure
+## What it does
 
-```text
-Badminton AI/
-├── output_videos/               # Processed demonstration videos
-│   ├── 00467_players_and_shuttle.mp4   # Full match video with players & shuttle
-│   └── 00467_shuttle_tracked.mp4       # Dedicated shuttle flight trail & speed HUD
-├── sample_dataset/              # Sample broadcast video & preview
-│   ├── 00467.mp4                # Match rally sample clip
-│   └── 00467img.png             # Frame snapshot
-├── training/                    # Dataset & notebook training utilities
-│   ├── shuttlecock_yolo_dataset/# YOLO format images, labels & split configs
-│   └── shuttlecock_detector_training.ipynb
-├── runs/                        # Trained model weights & inference outputs
-│   └── detect/shuttlecock/weights/best.pt
-├── detect_shuttle.py            # Dedicated shuttlecock detector & speed tracker
-├── yolo_inference.py            # Full player & shuttlecock match inference
-├── train_shuttlecock.py         # Shuttlecock YOLO fine-tuning script
-├── requirements.txt             # Python dependencies
-└── README.md
+| Step | How | Code |
+|---|---|---|
+| **Court** | 4 court corners → homography from pixels to court metres; each half split into 6 zones (F1–F6 far, N1–N6 near) | `badminton/court.py`, `calibrate_court.py`, `auto_calibrate_court.py` |
+| **Players** | YOLOv8 person detection, kept to the court; Player 1 = far side, Player 2 = near side | `analyze_match.py` |
+| **Shuttle** | [TrackNetV3](https://github.com/qaz812345/TrackNetV3) heatmaps from 8-frame windows, short gaps filled by its InpaintNet | `badminton/tracknet.py` |
+| **Hits** | Sharp turns or speed-ups in the shuttle's path; the hit zone is the hitting player's position | `badminton/events.py` |
+| **Shot speed** | The shuttle's first moves after the hit, measured on the court plane | `badminton/events.py` |
+| **Shot type** | YOLOv8-pose on the hitter around the hit → pose classifier → 6 shot groups (serve, clear/lift, smash, drop/net, drive/push, defensive) | `badminton/shots.py`, `badminton/shot_types.py` |
+| **Next zone** | Random Forest on the hit zone, previous zone, speed and the first 0.4 s of flight → probability for each of the opponent's 6 zones | `badminton/predictor.py` |
+
+```mermaid
+flowchart LR
+    V[Rally video] --> P[Players<br/>YOLOv8]
+    V --> S[Shuttle<br/>TrackNetV3]
+    C[Court corners] --> Z[Court zones]
+    S --> H[Hits & speed]
+    P --> H
+    Z --> H
+    H --> T[Shot type<br/>pose classifier]
+    H --> N[Next-zone<br/>Random Forest]
+    T --> O[Annotated video<br/>events.csv · dashboard]
+    N --> O
 ```
 
 ---
 
-## 🚀 Quick Start
+## Results
 
-### 1. Installation
-Clone the repository and install dependencies:
+All numbers are measured on rallies the model did not train on.
+
+| Task | Result | Compared with | Test set |
+|---|---|---|---|
+| Shuttle position (within 10 px) | **87%**, median error 2.8 px | 36%, 61 px for our earlier YOLO + motion tracker | 737 hand-labelled frames, 16 rallies |
+| Hit detection (within 4 frames) | **F1 0.67** (precision 68%, recall 66%); hitter's side right 92% | — | 200 hand-labelled hits, 15 rallies |
+| Shot group | **46%** | 33% always guessing the most common group; 19% for the original classifier | 195 hits, leave-one-rally-out |
+| Next zone (of 6) | **54.4% top-1 / 81.7% top-2** | 44.9% / 72.6% with YOLO shuttle tracks; 41.1% most common next zone; 16.7% random | 3,413 shots, 362 rallies, 5-fold cross-validation by rally |
+| Automatic court corners | median error 4.7 px | hand-clicked corners | — |
+
+Details: `runs/shuttle_eval/benchmark.json`, `runs/shot_eval/hits.json`, `runs/shot_model/broadcast_metrics.json`, `runs/zone_model/metrics.json`.
+
+**Tried and not kept**
+
+- Shot group as an extra next-zone feature: 53.8% vs 54.6% — the shuttle's first moves already carry that information.
+- Predicting later (0.53 s or 0.67 s instead of 0.4 s): +0.1 points, within noise.
+
+---
+
+## Run the demo
+
 ```bash
-git clone https://github.com/<your-username>/Badminton-AI.git
-cd "Badminton AI"
+git clone https://github.com/Agastyasingh1106/Badminton-AI.git
+cd Badminton-AI
 pip install -r requirements.txt
-```
-On Windows `pip` installs the CPU-only PyTorch. With an NVIDIA GPU, swap in the CUDA build (about 2.6× faster tracking on an RTX 4050):
-```bash
-pip install --force-reinstall --no-deps torch==2.14.1+cu130 torchvision==0.29.1+cu130 --index-url https://download.pytorch.org/whl/cu130
+streamlit run app.py
 ```
 
-### 2. Run Full Match Detection (Players + Shuttlecock)
-```bash
-python yolo_inference.py sample_dataset/00467.mp4 --person-model yolov8n.pt --output output_videos/match_annotated.mp4
-```
+The dashboard opens on the sample rally (00467) with its results already computed. Pick **Upload a video** in the sidebar to analyse another rally: click the 4 court corners, then **▶ Run analysis**.
 
-### 3. Run Dedicated Shuttlecock Trajectory & Speed Tracker
-```bash
-python detect_shuttle.py sample_dataset/00467.mp4 --output output_videos/shuttle_trajectory.mp4
-```
+- **Shuttle weights:** TrackNetV3's weights (142 MB) are not in git. Download `TrackNetV3_ckpts.zip` from the [TrackNetV3 repository](https://github.com/qaz812345/TrackNetV3) and put `TrackNet_best.pt` and `InpaintNet_best.pt` in `models/tracknetv3/`. Without them the pipeline falls back to the less accurate YOLO shuttle tracker.
+- **GPU:** on Windows `pip` installs CPU-only PyTorch. With an NVIDIA GPU, install the CUDA build:
+  ```bash
+  pip install --force-reinstall --no-deps torch==2.14.1+cu130 torchvision==0.29.1+cu130 --index-url https://download.pytorch.org/whl/cu130
+  ```
 
-### 4. Train / Fine-Tune Shuttlecock Model
-```bash
-python train_shuttlecock.py --epochs 15 --batch 16 --subset 400
-```
+**Command line:** `python analyze_match.py sample_dataset/00467.mp4` writes the annotated video, `events.csv` and `summary.json` to `runs/analysis/00467/`.
+
+**Dashboard tabs:** annotated video · shot table (player, zone, shot group, speed, predicted vs actual next zone) · zone heatmaps · next-zone prediction per shot and model accuracy · player movement.
 
 ---
 
-## 🗺️ Court Zones, Next-Zone Prediction & Dashboard
-
-- **Court zones** (`badminton/court.py`): the 4 court corners give a homography from pixels to court metres. Each half is split into 6 zones (F1–F6 far side, N1–N6 near side; 1–3 next to the net, 4–6 near the baseline). Airborne hit points are dropped onto the floor assuming a ~2 m contact height.
-- **Shot events** (`badminton/events.py`): hits are found where the shuttle's path turns sharply or speeds up, on a trajectory sampled every 4th frame (the same rate as the training labels). Each shot gets its player, zone, speed and the zone it was sent to.
-- **Next-zone predictor** (`badminton/predictor.py`, `train_zone_predictor.py`): a Random Forest uses the hit zone, previous zone, shot speed and the shuttle's first 0.4 s of flight to predict which of the opponent's 6 zones the shuttle goes to. It is trained on the 45 broadcast labelled rallies plus 320 unlabelled broadcast rallies tracked by our own pipeline with TrackNetV3 (3,413 shots from 362 rallies with a known next zone; practice-hall footage is left out) and scored on unseen rallies against simple baselines: **54.4% top-1 / 81.7% top-2**, vs 44.9% / 72.6% with the earlier YOLO shuttle tracks, 45.0% / 74.9% when trained on the labelled rallies alone and 39.6% for always guessing the most common zone.
-- **Unlabelled rallies** (`auto_calibrate_court.py`, `track_rallies.py`): court corners are fitted automatically by matching the standard court line layout to the white lines (median error 4.7 px against hand clicks), then players and shuttle are tracked with the match pipeline. Only broadcast rallies are tracked (`--ids runs/tracknet/broadcast_ids.txt`); the dark practice-hall footage is not used.
-- **Shuttle tracking** (`badminton/tracknet.py`): [TrackNetV3](https://github.com/qaz812345/TrackNetV3) (MIT, vendored in `third_party/tracknetv3/`) finds the shuttle from 8-frame sequences and fills short gaps. On hand-labelled clean broadcast frames it is far more accurate than our YOLO + motion tracker (`eval_shuttle_tracking.py`), (within 10 px on 87% of 737 visible frames from 16 rallies, median error 2.8 px, vs 36% and 61 px), so the pipeline uses it whenever its weights are installed and falls back to YOLO otherwise.
-- **Hand labels** (`label_hits.py`): one pass per rally marks each hit (frame, hitter side, shot type) and confirms or corrects the shuttle position on ~40 frames, saved to `hit_labels.json`. 15 rallies are labelled (200 hits). `eval_hits.py` scores hit detection against them: F1 0.67 within 4 frames (precision 68%, recall 66%), hitter side right on 92%.
-- **Shot types** (`badminton/shots.py`, `badminton/shot_types.py`): YOLOv8-pose on the hitting player around each hit, then a pose classifier. Trained on the group member's fixed-camera dataset (`train_shot_classifier.py`, 60% top-1 on unseen sessions there), it does not carry over to broadcast footage, so `finetune_shot_classifier.py` adapts it to our labelled hits as 6 shot groups (serve, clear/lift, smash, drop/net, drive/push, defensive) and saves a model only if it beats always guessing the most common group on unseen rallies. Fine-tuning the whole network does: 46% on unseen rallies (leave-one-rally-out over 195 hits) vs 33% for the most common group and 19% for the original model. Without a saved model, no shot group is shown. Added as a next-zone feature it does not help (53.8% vs 54.6% top-1 on the tracked rallies, grouped cross-validation): the shuttle's first moves already carry that information, so the zone model does not use it.
-- **Match pipeline** (`analyze_match.py`): players + rackets + shuttle tracking, zones, shots, shot groups and live predictions → annotated H.264 video, `events.csv` and `summary.json` in `runs/analysis/<video_id>/`.
-- **Dashboard** (`app.py`): Streamlit app with the annotated video, shot timeline, zone heatmaps, prediction viewer, model accuracy and player movement.
+## Retraining
 
 ```bash
-# 1. Click the 4 court corners for each video (saved to court_corners.json)
+# Court corners: click them, or fit them automatically for a folder of rallies
 python calibrate_court.py
-
-#    or fit them automatically for a folder of rally videos (check runs/court_fit/previews)
 python auto_calibrate_court.py dataset/rallies
 
-# 2. Track the unlabelled rallies (GPU: ~25 frames/s per process; run shards in parallel),
-#    then train the next-zone predictor (a few minutes)
+# Track the unlabelled broadcast rallies, then train the next-zone model
 python track_rallies.py dataset/rallies --ids runs/tracknet/broadcast_ids.txt --shard 0/2
 python track_rallies.py dataset/rallies --ids runs/tracknet/broadcast_ids.txt --shard 1/2
 python train_zone_predictor.py
 
-# TrackNetV3 weights (142 MB, not in git): download TrackNetV3_ckpts.zip from the link in
-# https://github.com/qaz812345/TrackNetV3 and put TrackNet_best.pt and InpaintNet_best.pt in models/tracknetv3/
-
-# Hand labels, then score shuttle tracking, hit detection and adapt the shot classifier
-python label_hits.py
+# Hand labels, evaluation and the shot classifier
+python label_hits.py                 # hits, hitter side, shot type and shuttle positions -> hit_labels.json
 python eval_shuttle_tracking.py
 python eval_hits.py
-python train_shot_classifier.py          # on dataset/shot_keypoints.csv (group member's pose data)
-python finetune_shot_classifier.py       # broadcast shot groups from hit_labels.json
-
-# 3. Analyse a rally from the command line
-python analyze_match.py sample_dataset/00467.mp4
-
-# 4. Or open the dashboard
-streamlit run app.py
+python train_shot_classifier.py      # on dataset/shot_keypoints.csv (pose keypoint dataset)
+python finetune_shot_classifier.py   # adapts it to broadcast footage as 6 shot groups
 ```
 
 ---
 
-## 📊 Performance & Results
+## Repository
 
-- **Player Tracking**: 100% persistent Player 1 & 2 identity retention across rallies.
-- **Shuttlecock Tracking**: TrackNetV3 is within 10 px of the hand-labelled shuttle on 87% of visible frames (median error 2.8 px) across 16 broadcast rallies, vs 36% for the earlier YOLO + motion tracker (`runs/shuttle_eval/benchmark.json`).
-- **Speed Estimation**: shot speed from the shuttle's first two 4-frame moves on the court plane. From a single camera it is an estimate: clears and lifts read ~130 km/h, drives ~30 km/h, and near-side smashes read low because moving away from the camera and down at once barely moves the shuttle on screen.
+```text
+app.py                     Streamlit dashboard
+analyze_match.py           Full pipeline for one rally → annotated video, events.csv, summary.json
+badminton/
+  court.py                 Court homography and zones
+  tracknet.py              TrackNetV3 shuttle tracking
+  events.py                Hits, hit zones, shot speed
+  shots.py, shot_types.py  Pose-based shot classifier and shot groups
+  predictor.py             Next-zone model features and wrapper
+calibrate_court.py         Click court corners  (auto_calibrate_court.py fits them automatically)
+track_rallies.py           Track many rallies for training
+train_zone_predictor.py    Train and cross-validate the next-zone model
+label_hits.py              Labelling tool for hits, shot types and shuttle positions
+eval_*.py                  Shuttle-tracking and hit-detection benchmarks
+train_shot_classifier.py, finetune_shot_classifier.py
+detect_shuttle.py, train_shuttlecock.py, yolo_inference.py   Earlier YOLO shuttle detector (fallback)
+third_party/tracknetv3/    Vendored TrackNetV3 (MIT)
+runs/                      Trained models, metrics and the sample analysis
+sample_dataset/00467.mp4   Sample rally (held out from all training)
+```
 
 ---
 
-## 📜 License
-MIT License
+## Limitations and next steps
+
+- **Single camera.** Shot speed is an estimate; smashes from the near-side player read low because the shuttle moves away from the camera and down at the same time.
+- **Shot groups are right about half the time.** More labelled hits would help most.
+- **Next-zone mistakes** are mostly short-vs-deep: the model falls back to the back-middle zone when unsure. The receiving player's movement after the hit is the most promising next feature.
+- **Broadcast footage only.** The practice-hall videos in the dataset are not used.
+
+---
+
+## Credits
+
+- [TrackNetV3](https://github.com/qaz812345/TrackNetV3) (MIT) for shuttle tracking
+- [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics) for player detection and pose
+- Rally videos and the pose keypoint dataset from our group's badminton dataset collection
+
+## License
+MIT
