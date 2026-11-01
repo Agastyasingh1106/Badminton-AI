@@ -140,24 +140,44 @@ Without the downloaded weights the pipeline falls back to a much less accurate s
 
 ---
 
-## Retraining
+## How the models were trained
+
+> **You don't need this to run the demo or analyse new videos.** The trained models are already in the repository. This section shows how they and the results above were produced.
+>
+> Most of these steps need data that is too big for GitHub and is not in this repository:
+> - `dataset/rallies/`: 400 rally videos (`00401.mp4` … `00800.mp4`) from our group's badminton dataset
+> - `dataset/shot_keypoints.csv`: the pose keypoint dataset for the shot classifier (258 MB)
+>
+> Put them at those paths to rerun everything.
+
+**1. Court corners** — click them for one video, or fit them automatically for a folder of rallies. Already done: all corners are in `court_corners.json`.
 
 ```bash
-# Court corners: click them, or fit them automatically for a folder of rallies
-python calibrate_court.py
-python auto_calibrate_court.py dataset/rallies
+python calibrate_court.py                      # works from the repository as is
+python auto_calibrate_court.py dataset/rallies # needs the rally videos
+```
 
-# Track the unlabelled broadcast rallies, then train the next-zone model
+**2. Next-zone model** — track the 320 broadcast rallies listed in `runs/tracknet/broadcast_ids.txt` (practice-hall footage left out), then train and cross-validate. Without the tracked rallies, `train_zone_predictor.py` still runs but only learns from the 45 labelled rallies and scores lower than the 54% above.
+
+```bash
 python track_rallies.py dataset/rallies --ids runs/tracknet/broadcast_ids.txt --shard 0/2
 python track_rallies.py dataset/rallies --ids runs/tracknet/broadcast_ids.txt --shard 1/2
 python train_zone_predictor.py
+```
 
-# Hand labels, evaluation and the shot classifier
-python label_hits.py                 # hits, hitter side, shot type and shuttle positions -> hit_labels.json
-python eval_shuttle_tracking.py
-python eval_hits.py
-python train_shot_classifier.py      # on dataset/shot_keypoints.csv (pose keypoint dataset)
-python finetune_shot_classifier.py   # adapts it to broadcast footage as 6 shot groups
+**3. Hand labels and benchmarks** — `hit_labels.json` (in the repository) holds 200 hand-labelled hits and shuttle positions from 15 rallies. The benchmarks score the pipeline against them and need the rally videos.
+
+```bash
+python label_hits.py              # the labelling tool used to make hit_labels.json
+python eval_shuttle_tracking.py   # shuttle tracking accuracy
+python eval_hits.py               # hit detection accuracy
+```
+
+**4. Shot classifier** — train it on the pose keypoint dataset, then adapt it to broadcast footage as 6 shot groups using the hand-labelled hits.
+
+```bash
+python train_shot_classifier.py      # needs dataset/shot_keypoints.csv
+python finetune_shot_classifier.py   # needs the rally videos
 ```
 
 ---

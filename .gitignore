@@ -43,7 +43,8 @@ runs/*.log
 runs/*_log.txt
 
 # TrackNetV3 outputs (regenerate with external/run_tracknet_all.sh) and benchmark scratch
-runs/tracknet/
+runs/tracknet/*
+!runs/tracknet/broadcast_ids.txt
 
 # TrackNetV3 weights (142 MB, over the GitHub file limit; see README) and shot-eval caches
 models/tracknetv3/*.pt
